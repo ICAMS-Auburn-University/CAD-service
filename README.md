@@ -69,11 +69,23 @@ Run the service:
 
 ```bash
 docker run --rm \
-  -e SUPABASE_URL="https://xyzcompany.supabase.co" \
-  -e SUPABASE_KEY="your-key" \
-  -e STORAGE_BUCKET="cad-files" \
   -p 8000:8000 \
+  --env SUPABASE_URL \
+  --env SUPABASE_KEY \
+  --env STORAGE_BUCKET \
   cad-service
+```
+
+With your variables already exported in the current shell, Docker will forward them. For an ad-hoc
+command (for example, validating FreeCAD availability), reuse the same pattern:
+
+```bash
+docker run --rm \
+  --env SUPABASE_URL \
+  --env SUPABASE_KEY \
+  --env STORAGE_BUCKET \
+  cad-service \
+  python -c "import FreeCAD, sys; print(sys.executable, FreeCAD.Version())"
 ```
 
 Send a request with an uploaded CAD file:
