@@ -55,11 +55,12 @@ COPY src ${APP_HOME}/src
 COPY tests ${APP_HOME}/tests
 COPY scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
 
-# Make the entrypoint script executable
-RUN chmod +x /usr/local/bin/entrypoint.sh
+# Normalize line endings (handle CRLF checked-out on Windows) and make executable
+RUN sed -i 's/\r$//' /usr/local/bin/entrypoint.sh && \
+    chmod +x /usr/local/bin/entrypoint.sh
 
 # Expose FastAPI default port for local dev / deployment
 EXPOSE 8000
 
 # Default entrypoint
-ENTRYPOINT ["entrypoint.sh"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
