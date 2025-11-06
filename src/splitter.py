@@ -84,9 +84,7 @@ def split_into_parts(model: ModelObject) -> List[PartMetadata]:
         return parts
 
     if not FREECAD_AVAILABLE or model.document is None:
-        raise RuntimeError(
-            "FreeCAD is not available, and no precomputed parts were provided."
-        )
+        raise RuntimeError("FreeCAD is not available, and no precomputed parts were provided.")
 
     # START FREECAD SPLIT PLACEHOLDER
     parts_container = []

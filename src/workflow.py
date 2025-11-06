@@ -1,19 +1,21 @@
 from __future__ import annotations
 
-import json
 import logging
 import tempfile
 from pathlib import Path
-from typing import Dict, List
+from typing import List
 
 from config import Settings
 from splitter import export_parts, import_file, split_into_parts
 from storage import SupabaseStorageClient
+from models import SplitJobResult
 
 logger = logging.getLogger(__name__)
 
 
-def process_order(user_id: str, order_id: str, input_file: str, settings: Settings) -> Dict[str, object]:
+def process_order(
+    user_id: str, order_id: str, input_file: str, settings: Settings
+) -> SplitJobResult:
     """Run the full split -> upload workflow."""
     user_id = user_id.strip()
     order_id = order_id.strip()
@@ -61,12 +63,12 @@ def process_order(user_id: str, order_id: str, input_file: str, settings: Settin
             storage_client.upload_file(export.file_path, remote_path)
             parts_remote_paths.append(remote_path)
 
-    result = {
-        "user_id": user_id,
-        "order_id": order_id,
-        "original": original_remote_path,
-        "parts": parts_remote_paths,
-    }
+    result = SplitJobResult(
+        user_id=user_id,
+        order_id=order_id,
+        original=original_remote_path,
+        parts=parts_remote_paths,
+    )
 
     logger.info("Workflow completed for order %s", order_id)
     return result
@@ -75,6 +77,6 @@ def process_order(user_id: str, order_id: str, input_file: str, settings: Settin
 def run_and_dump_json(user_id: str, order_id: str, input_file: str, settings: Settings) -> str:
     """Execute the workflow and return a JSON string."""
     result = process_order(user_id, order_id, input_file, settings)
-    json_payload = json.dumps(result, indent=2)
+    json_payload = result.model_dump_json(indent=2)
     logger.debug("Workflow JSON result: %s", json_payload)
     return json_payload

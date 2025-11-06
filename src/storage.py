@@ -46,17 +46,16 @@ class SupabaseStorageClient:
         if not local_path.exists():
             raise FileNotFoundError(f"Cannot upload missing file: {local_path}")
 
-        detected_type = content_type or mimetypes.guess_type(local_path.name)[0] or "application/octet-stream"
+        detected_type = (
+            content_type or mimetypes.guess_type(local_path.name)[0] or "application/octet-stream"
+        )
         logger.info("Uploading %s to Supabase path %s", local_path, remote_path)
 
         with local_path.open("rb") as file_handle:
-            response = (
-                self._client.storage.from_(self._bucket)
-                .upload(
-                    remote_path,
-                    file_handle,
-                    {"content-type": detected_type, "upsert": True},
-                )
+            response = self._client.storage.from_(self._bucket).upload(
+                remote_path,
+                file_handle,
+                {"content-type": detected_type, "upsert": True},
             )
 
         if isinstance(response, dict) and response.get("error"):
