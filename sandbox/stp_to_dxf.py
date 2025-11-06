@@ -1,18 +1,34 @@
 import sys
+import datetime
+import subprocess
 from OCC.Core.STEPControl import STEPControl_Reader
 from OCC.Core.IFSelect import IFSelect_RetDone
 from OCC.Core.BRep import BRep_Tool
 from OCC.Core.TopExp import TopExp_Explorer
 from OCC.Core.TopAbs import TopAbs_EDGE
-from OCC.Core.gp import gp_Pnt
 import ezdxf
 
-# Orthogonal projections for 3 views (Front, Top, Side)
+# Sheet constants (mm, ISO A4)
+A4_WIDTH = 297
+A4_HEIGHT = 210
+MARGIN = 10
+
+# Orthogonal projections
 PROJECTIONS = [
-    ((0, 0, 1), 'Top'),    # Z projection
-    ((0, 1, 0), 'Front'),  # Y projection
-    ((1, 0, 0), 'Side'),   # X projection
+    ((0, 0, 1), 'Top'),     # Z projection
+    ((0, 1, 0), 'Front'),   # Y projection
+    ((1, 0, 0), 'Side'),    # X projection
 ]
+
+def export_pdf_from_dxf(dxf_file, pdf_file):
+    try:
+        print(f"Generating PDF: {pdf_file}")
+        subprocess.run([
+            "inkscape", dxf_file, "--export-type=pdf", "--export-filename", pdf_file
+        ], check=True)
+        print(f"PDF saved: {pdf_file}")
+    except Exception as e:
+        print("PDF export failed:", e)
 
 def load_shape(step_file):
     reader = STEPControl_Reader()
@@ -23,13 +39,6 @@ def load_shape(step_file):
     return reader.OneShape()
 
 def project_point(p, direction):
-    """
-    Ortho project a 3D point onto a plane normal to 'direction'.
-    Returns a 2D (x, y) tuple for DXF.
-    """
-    # For Top view (0,0,1): Keep X, Y, drop Z
-    # For Front (0,1,0): Keep X, Z, drop Y
-    # For Side (1,0,0): Keep Y, Z, drop X
     if direction == (0, 0, 1):      # Top
         return (p.X(), p.Y())
     elif direction == (0, 1, 0):    # Front
@@ -51,15 +60,63 @@ def collect_edges(shape):
         explorer.Next()
     return edges
 
-def write_dxf(edges, projection, name, doc, msp, offset=(0,0)):
-    # Apply projection
+def get_bbox(edges, proj):
+    min_x, min_y = float('inf'), float('inf')
+    max_x, max_y = float('-inf'), float('-inf')
     for p0, p1 in edges:
-        pt1 = project_point(p0, projection)
-        pt2 = project_point(p1, projection)
-        # Offset each view for layout
-        pt1 = (pt1[0]+offset[0], pt1[1]+offset[1])
-        pt2 = (pt2[0]+offset[0], pt2[1]+offset[1])
-        msp.add_line(pt1, pt2, dxfattribs={'layer': name})
+        for p in [p0, p1]:
+            x, y = project_point(p, proj)
+            min_x = min(min_x, x)
+            min_y = min(min_y, y)
+            max_x = max(max_x, x)
+            max_y = max(max_y, y)
+    return (min_x, min_y, max_x, max_y)
+
+def scale_and_center(bbox, frame_width, frame_height):
+    min_x, min_y, max_x, max_y = bbox
+    obj_w = max_x - min_x
+    obj_h = max_y - min_y
+    scale_x = frame_width / obj_w if obj_w != 0 else 1
+    scale_y = frame_height / obj_h if obj_h != 0 else 1
+    scale = min(scale_x, scale_y)
+    offset_x = (frame_width - obj_w * scale) / 2 - min_x * scale
+    offset_y = (frame_height - obj_h * scale) / 2 - min_y * scale
+    return scale, offset_x, offset_y
+
+def draw_iso_frame_and_block(doc, msp):
+    doc.layers.add("FRAME")
+    doc.layers.add("TITLE")
+    doc.layers.add("Top")
+    doc.layers.add("Front")
+    doc.layers.add("Side")
+    msp.add_lwpolyline([
+        (0, 0), (A4_WIDTH, 0), (A4_WIDTH, A4_HEIGHT), (0, A4_HEIGHT), (0, 0)
+    ], dxfattribs={'layer':'FRAME'})
+    msp.add_lwpolyline([
+        (MARGIN, MARGIN), (A4_WIDTH-MARGIN, MARGIN),
+        (A4_WIDTH-MARGIN, A4_HEIGHT-MARGIN), (MARGIN, A4_HEIGHT-MARGIN), (MARGIN, MARGIN)
+    ], dxfattribs={'layer':'FRAME'})
+    tb_w = 180
+    tb_h = 55
+    tb_x = A4_WIDTH - tb_w - MARGIN
+    tb_y = MARGIN
+    msp.add_lwpolyline([
+        (tb_x, tb_y), (tb_x+tb_w, tb_y), (tb_x+tb_w, tb_y+tb_h), (tb_x, tb_y+tb_h), (tb_x, tb_y)
+    ], dxfattribs={'layer':'TITLE'})
+    msp.add_line((tb_x, tb_y+tb_h-12), (tb_x+tb_w, tb_y+tb_h-12), dxfattribs={'layer':'TITLE'})
+    msp.add_line((tb_x, tb_y+tb_h-30), (tb_x+tb_w, tb_y+tb_h-30), dxfattribs={'layer':'TITLE'})
+    return tb_x, tb_y, tb_w, tb_h
+
+def fill_title_block(msp, tb_x, tb_y, tb_w, tb_h, title, filename, company=""):
+    today = str(datetime.date.today())
+    msp.add_text("DRAWING TITLE:", dxfattribs={'height':6, 'layer':'TITLE', 'insert': (tb_x+2, tb_y+tb_h-8)})
+    msp.add_text(title, dxfattribs={'layer':'TITLE', 'height':7, 'insert': (tb_x+75, tb_y+tb_h-8)})
+    msp.add_text("FILE:", dxfattribs={'height':4.5, 'layer':'TITLE', 'insert': (tb_x+2, tb_y+tb_h-18)})
+    msp.add_text(filename, dxfattribs={'layer':'TITLE', 'height':4, 'insert': (tb_x+18, tb_y+tb_h-18)})
+    msp.add_text("DATE:", dxfattribs={'height':4.5, 'layer':'TITLE', 'insert': (tb_x+2, tb_y+tb_h-36)})
+    msp.add_text(today, dxfattribs={'layer':'TITLE', 'height':4, 'insert': (tb_x+18, tb_y+tb_h-36)})
+    msp.add_text("COMPANY:", dxfattribs={'height':4.5, 'layer':'TITLE', 'insert': (tb_x+2, tb_y+tb_h-52)})
+    msp.add_text(company, dxfattribs={'layer':'TITLE', 'height':4, 'insert': (tb_x+24, tb_y+tb_h-52)})
 
 def main():
     if len(sys.argv) != 3:
@@ -76,19 +133,37 @@ def main():
 
     doc = ezdxf.new(setup=True)
     msp = doc.modelspace()
-    # Arrange 3 views side by side for manufacturer drawings
-    view_spacing = 200  # Space between views (units depend on your model scale)
-    offsets = [
-        (0,0),                  # Top left for Top view
-        (view_spacing,0),       # Next for Front view
-        (2*view_spacing,0),     # Next for Side view
+
+    tb_x, tb_y, tb_w, tb_h = draw_iso_frame_and_block(doc, msp)
+    fill_title_block(msp, tb_x, tb_y, tb_w, tb_h, title="3-View Projection", filename=step_file, company="Your Company")
+
+    gap = 15
+    view_area_w = int((A4_WIDTH - 2 * MARGIN - 2 * gap - 20) / 3)
+    view_area_h = A4_HEIGHT - tb_h - 2*MARGIN - 24
+    view_offsets = [
+        (MARGIN+10, tb_y+tb_h+12),
+        (MARGIN+10 + view_area_w + gap, tb_y+tb_h+12),
+        (MARGIN+10 + 2 * (view_area_w + gap), tb_y+tb_h+12)
     ]
-    for (proj, name), offset in zip(PROJECTIONS, offsets):
-        print(f"Projecting {name} view ...")
-        write_dxf(edges, proj, name, doc, msp, offset=offset)
+
+    for ((proj, name), offset) in zip(PROJECTIONS, view_offsets):
+        bbox = get_bbox(edges, proj)
+        scale, off_x, off_y = scale_and_center(bbox, view_area_w, view_area_h)
+        msp.add_text(f"{name.upper()} VIEW", dxfattribs={'layer': 'TITLE', 'height':7, 'insert': (offset[0], offset[1]-12)})
+        for p0, p1 in edges:
+            pt1 = project_point(p0, proj)
+            pt2 = project_point(p1, proj)
+            pt1 = (pt1[0]*scale + offset[0] + off_x, pt1[1]*scale + offset[1] + off_y)
+            pt2 = (pt2[0]*scale + offset[0] + off_x, pt2[1]*scale + offset[1] + off_y)
+            msp.add_line(pt1, pt2, dxfattribs={'layer': name, 'color': 7})
+
     print(f"Writing DXF to: {out_dxf}")
     doc.saveas(out_dxf)
-    print(f"DXF export complete.")
+    print(f"DXF export complete. Ready for production or quoting.")
+
+    # Generate PDF as well
+    out_pdf = out_dxf.rsplit('.', 1)[0] + '.pdf'
+    export_pdf_from_dxf(out_dxf, out_pdf)
 
 if __name__ == "__main__":
     main()
