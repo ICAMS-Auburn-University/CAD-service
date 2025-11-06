@@ -136,8 +136,6 @@ The container continues running so upstream systems can post multiple jobs over 
 
 > Note: Regenerate the dependency lockfile with `poetry lock` whenever dependencies change.
 
-### Future Enhancements
+### STEP File Examples
+https://www.steptools.com/docs/stpfiles/bigassy/index.html
 
-- Add job queue ingestion (Supabase Functions, MQ) in addition to HTTP.
-- Generate signed URLs for uploaded parts to aid the bidding workflow.
-- Include richer metadata (mass, volume, bounding boxes) per part for pricing logic.
