@@ -1,4 +1,4 @@
-FROM python:3.10-slim
+FROM continuumio/miniconda3:latest
 
 # Environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -23,23 +23,21 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # FreeCAD installs its Python modules under /usr/lib/freecad/lib; expose this
-# so `import FreeCAD` works inside Poetry-managed environments.
 ENV PYTHONPATH=/usr/lib/freecad/lib:/app/src
 
-# Install Poetry and cairosvg (for SVG to PNG conversion)
+# Install conda Python deps for pythonOCC and DXF export
+RUN conda install -y -c conda-forge python=3.10 pythonocc-core ezdxf
+
+# Poetry and cairosvg for existing workflow
 RUN pip install "poetry==$POETRY_VERSION" cairosvg
 
-# Set working directory
 WORKDIR ${APP_HOME}
-
-# Copy Poetry files first for caching
 COPY pyproject.toml poetry.lock ${APP_HOME}/
 
-# Configure Poetry to install dependencies in the global environment (not virtualenv), then install
 RUN poetry config virtualenvs.create false && \
     poetry install --no-interaction --no-ansi
 
-# Sanity check: ensure FreeCAD modules are importable inside the container.
+# Sanity check: ensure FreeCAD modules are importable inside the container
 RUN python - <<'PY'
 import sys
 print(f"Python executable: {sys.executable}")
@@ -47,17 +45,13 @@ import FreeCAD
 print(f"FreeCAD version: {FreeCAD.Version()}")
 PY
 
-# Copy application code
 COPY src ${APP_HOME}/src
 COPY tests ${APP_HOME}/tests
 COPY scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
 
-# Normalize line endings (handle CRLF checked-out on Windows) and make executable
 RUN sed -i 's/\r$//' /usr/local/bin/entrypoint.sh && \
     chmod +x /usr/local/bin/entrypoint.sh
 
-# Expose FastAPI default port for local dev / deployment
 EXPOSE 8000
 
-# Default entrypoint
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
