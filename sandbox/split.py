@@ -20,7 +20,6 @@ import logging
 from typing import List, Sequence, Set
 
 import FreeCAD
-import Part
 import Import
 
 

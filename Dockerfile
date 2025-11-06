@@ -1,4 +1,3 @@
-# Base image: Debian-derived Python for compatibility with FreeCAD packages.
 FROM python:3.10-slim
 
 # Environment variables
@@ -8,10 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     POETRY_VERSION=1.8.3 \
     APP_HOME=/app
 
-# Install system dependencies including FreeCAD and required libraries.
-# We prefer the distro package over the AppImage here because it bundles
-# the headless FreeCAD Python modules (`freecadcmd`, libFreeCAD) with
-# correct ABI linkage for Debian, while keeping the container lean.
+# Install system dependencies including FreeCAD, Inkscape for SVG→DXF conversion
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     freecad \
@@ -20,6 +16,7 @@ RUN apt-get update && \
     libsm6 \
     libxrender1 \
     libxext6 \
+    inkscape \
     wget \
     curl \
     build-essential && \
@@ -29,8 +26,8 @@ RUN apt-get update && \
 # so `import FreeCAD` works inside Poetry-managed environments.
 ENV PYTHONPATH=/usr/lib/freecad/lib:/app/src
 
-# Install Poetry in the global interpreter so we can use it in entrypoints.
-RUN pip install "poetry==$POETRY_VERSION"
+# Install Poetry and cairosvg (for SVG to PNG conversion)
+RUN pip install "poetry==$POETRY_VERSION" cairosvg
 
 # Set working directory
 WORKDIR ${APP_HOME}
