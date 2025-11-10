@@ -10,9 +10,9 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 
 from api.dependencies import get_settings
 from api.utils import temporary_file
-from config import Settings
+from core.config import Settings
 from models import SplitJobResponse, MessageResponse
-from workflow import process_order
+from cad.workflow import process_order
 
 logger = logging.getLogger(__name__)
 
