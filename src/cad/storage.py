@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-import logging
 import mimetypes
 from pathlib import Path
 from typing import Optional
 
 from supabase import Client, create_client
-
-logger = logging.getLogger(__name__)
 
 
 class SupabaseStorageClient:
@@ -49,7 +46,6 @@ class SupabaseStorageClient:
         detected_type = (
             content_type or mimetypes.guess_type(local_path.name)[0] or "application/octet-stream"
         )
-        logger.info("Uploading %s to Supabase path %s", local_path, remote_path)
 
         with local_path.open("rb") as file_handle:
             response = self._client.storage.from_(self._bucket).upload(
@@ -60,8 +56,5 @@ class SupabaseStorageClient:
 
         if isinstance(response, dict) and response.get("error"):
             error_message = response["error"]["message"]
-            logger.error("Supabase upload error: %s", error_message)
             raise RuntimeError(f"Supabase upload failed: {error_message}")
-
-        logger.debug("Supabase upload response: %s", response)
         return remote_path

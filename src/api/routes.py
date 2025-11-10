@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import shutil
 from pathlib import Path
 
@@ -13,8 +12,6 @@ from api.utils import temporary_file
 from core.config import Settings
 from models import SplitJobResponse, MessageResponse
 from cad.workflow import process_order
-
-logger = logging.getLogger(__name__)
 
 
 router = APIRouter(tags=["split"])
@@ -50,8 +47,6 @@ async def split_cad_model(
             detail="User and order identifiers are required.",
         )
 
-    logger.info("Received split request for user %s order %s", clean_user, clean_order)
-
     try:
         suffix = Path(cad_file.filename).suffix or ".step"
         with temporary_file(suffix=suffix) as temp_path:
@@ -62,7 +57,6 @@ async def split_cad_model(
     except RuntimeError as exc:
         message = str(exc)
         if "FreeCAD is not available" in message:
-            logger.warning("FreeCAD unavailable for request %s/%s", clean_user, clean_order)
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail=(
@@ -74,7 +68,6 @@ async def split_cad_model(
     except HTTPException:
         raise
     except Exception as exc:
-        logger.exception("Failed to process CAD file: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to process CAD file.",
@@ -82,7 +75,6 @@ async def split_cad_model(
     finally:
         await cad_file.close()
 
-    logger.info("Split request completed for user %s order %s", clean_user, clean_order)
     return SplitJobResponse(data=result)
 
 

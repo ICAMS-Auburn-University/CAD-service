@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import os
 from pathlib import Path
 from typing import Iterable, List, Sequence, Set
@@ -9,8 +8,6 @@ import FreeCAD
 import Import
 
 from cad.types import SplitPart
-
-logger = logging.getLogger(__name__)
 
 
 def sanitize_filename(name: str) -> str:
@@ -25,11 +22,9 @@ def ensure_directory(path: Path) -> None:
 
 def load_document(input_file: Path):
     abs_path = input_file.resolve()
-    logger.info("Loading document: %s", abs_path)
     document = FreeCAD.newDocument(f"tmp_{os.getpid()}")  # type: ignore[attr-defined]
     Import.insert(str(abs_path), document.Name)
     document.recompute()
-    logger.info("Document loaded with %d objects", len(document.Objects))
     return document
 
 
@@ -158,8 +153,6 @@ def split_step_assembly(input_file: Path, output_dir: Path) -> List[SplitPart]:
                 )
                 for child in children:
                     walk(child, (*rel_dirs, safe_label))
-            else:
-                logger.debug("Skipping subgroup %s: no exportable geometry", safe_label)
 
         for node in start_nodes:
             walk(node, ())

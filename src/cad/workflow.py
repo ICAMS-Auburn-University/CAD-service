@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import tempfile
 from pathlib import Path
 from typing import List
@@ -11,8 +10,6 @@ from cad.dxf import convert_step_to_dxf
 from cad.layouts import build_part_layout
 from cad.splitter import split_step_assembly
 from cad.storage import SupabaseStorageClient
-
-logger = logging.getLogger(__name__)
 
 
 def process_order(
@@ -27,8 +24,6 @@ def process_order(
     input_path = Path(input_file)
     if not input_path.exists():
         raise FileNotFoundError(f"Input file not found: {input_file}")
-
-    logger.info("Processing order %s for user %s", order_id, user_id)
 
     storage_client = SupabaseStorageClient(
         settings.supabase_url,
@@ -50,7 +45,6 @@ def process_order(
             original_remote_name,
         )
 
-        logger.info("Uploading original file as %s", original_remote_path)
         storage_client.upload_file(input_path, original_remote_path)
 
         part_payloads: List[SplitPartFile] = []
@@ -92,13 +86,10 @@ def process_order(
         layout=layout,
     )
 
-    logger.info("Workflow completed for order %s", order_id)
     return result
 
 
 def run_and_dump_json(user_id: str, order_id: str, input_file: str, settings: Settings) -> str:
     """Execute the workflow and return a JSON string."""
     result = process_order(user_id, order_id, input_file, settings)
-    json_payload = result.model_dump_json(indent=2)
-    logger.debug("Workflow JSON result: %s", json_payload)
-    return json_payload
+    return result.model_dump_json(indent=2)
