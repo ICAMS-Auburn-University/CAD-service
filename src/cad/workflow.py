@@ -38,23 +38,13 @@ def _upload_file(local_path: Path, remote_path: str) -> str:
     return remote_path
 
 
-def process_order(user_id: str, order_id: str, input_file: str) -> SplitJobResult:
-    """Run the full split -> upload workflow."""
-    user_id = user_id.strip()
-    order_id = order_id.strip()
-    if not user_id or not order_id:
-        raise ValueError("User ID and Order ID must be provided.")
-
-    input_path = Path(input_file)
-    if not input_path.exists():
-        raise FileNotFoundError(f"Input file not found: {input_file}")
-
+def process_order(user_id: str, order_id: str, input_path: Path) -> SplitJobResult:
     with tempfile.TemporaryDirectory(prefix="cad-service-") as tmp_dir:
         export_dir = Path(tmp_dir) / "parts"
         parts = split_step_assembly(input_path, export_dir)
         layout = build_part_layout(parts)
 
-        original_remote_name = f"original{input_path.suffix or '.step'}"
+        original_remote_name = f"original{input_path.suffix}"
         original_remote_path = _build_remote_path(
             user_id,
             order_id,
