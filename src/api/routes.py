@@ -1,13 +1,7 @@
-import shutil
-from pathlib import Path
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-
-from api.dependencies import get_settings
-from api.utils import temporary_file
-from core.config import Settings
 from models import SplitJobResponse, MessageResponse
-from cad.workflow import process_order
+from cad.service import process_uploaded_cad
 
 
 router = APIRouter(tags=["split"])
@@ -28,7 +22,6 @@ async def split_cad_model(
     user_id: str = Form(..., min_length=1, description="User identifier for storage scoping."),
     order_id: str = Form(..., min_length=1, description="Order identifier for storage scoping."),
     cad_file: UploadFile = File(..., description="STEP/IGES CAD file to be processed."),
-    settings: Settings = Depends(get_settings),
 ) -> SplitJobResponse:
     """Process an uploaded CAD file and return Supabase storage locations."""
 
@@ -44,12 +37,11 @@ async def split_cad_model(
         )
 
     try:
-        suffix = Path(cad_file.filename).suffix or ".step"
-        with temporary_file(suffix=suffix) as temp_path:
-            with temp_path.open("wb") as destination:
-                shutil.copyfileobj(cad_file.file, destination)
-
-            result = process_order(clean_user, clean_order, str(temp_path), settings)
+        result = process_uploaded_cad(clean_user, clean_order, cad_file.filename, cad_file.file)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except RuntimeError as exc:
         message = str(exc)
         if "FreeCAD is not available" in message:
@@ -60,9 +52,9 @@ async def split_cad_model(
                     "or provide precomputed parts for testing."
                 ),
             ) from exc
-        raise
-    except HTTPException:
-        raise
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=message or "Processing failed."
+        ) from exc
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -72,6 +64,3 @@ async def split_cad_model(
         await cad_file.close()
 
     return SplitJobResponse(data=result)
-
-
-__all__ = ["router"]

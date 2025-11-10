@@ -1,11 +1,10 @@
-import os
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-import uvicorn
+from supabase import init_supabase
 
 from api.routes import router
 
@@ -29,6 +28,6 @@ async def favicon() -> FileResponse:
     return FileResponse(STATIC_DIR / "favicon.ico")
 
 
-def run() -> None:
-    port = int(os.environ.get("PORT", "8000"))
-    uvicorn.run("app:app", host="0.0.0.0", port=port, log_level="info")
+@app.on_event("startup")
+async def startup_event():
+    init_supabase()

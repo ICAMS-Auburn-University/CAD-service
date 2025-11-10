@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Tuple
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 
 class SplitPart(BaseModel):
@@ -10,9 +10,6 @@ class SplitPart(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     name: str
-    hierarchy: Tuple[str, ...] = Field(default_factory=tuple)
+    hierarchy: Tuple[str, ...] = ()
     has_children: bool = False
     step_path: Path
-
-
-__all__ = ["SplitPart"]
