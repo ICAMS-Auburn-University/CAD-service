@@ -1,7 +1,3 @@
-"""Helper utilities for API request handling."""
-
-from __future__ import annotations
-
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import NamedTemporaryFile

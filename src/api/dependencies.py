@@ -1,7 +1,3 @@
-"""FastAPI dependency wiring for the CAD service."""
-
-from __future__ import annotations
-
 from functools import lru_cache
 
 from core.config import Settings

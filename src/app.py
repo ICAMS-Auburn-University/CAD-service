@@ -1,27 +1,17 @@
-from __future__ import annotations
-
 import os
-from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
-from api.dependencies import get_settings
 from api.routes import router
 
+STATIC_DIR = Path(__file__).resolve().parent / "static"
 
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-    get_settings()
-    yield
-
-
-app = FastAPI(title="CAD Service", version="0.2.0", lifespan=lifespan)
-
+app = FastAPI(title="CAD Service", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -30,20 +20,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-static_dir = Path(__file__).resolve().parent / "static"
-if static_dir.exists():
-    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+app.include_router(router, prefix="/api/v1")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon() -> FileResponse:
-    icon_path = static_dir / "favicon.ico"
-    if not icon_path.exists():
-        raise HTTPException(status_code=404, detail="Favicon not configured.")
-    return FileResponse(icon_path)
-
-
-app.include_router(router, prefix="/api")
+    return FileResponse(STATIC_DIR / "favicon.ico")
 
 
 def run() -> None:
