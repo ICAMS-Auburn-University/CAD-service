@@ -52,10 +52,10 @@ PY
 
 COPY src ${APP_HOME}/src
 COPY tests ${APP_HOME}/tests
-COPY scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY scripts ${APP_HOME}/scripts
 
-RUN sed -i 's/\r$//' /usr/local/bin/entrypoint.sh && \
-    chmod +x /usr/local/bin/entrypoint.sh
+RUN sed -i 's/\r$//' ${APP_HOME}/scripts/entrypoint.sh && \
+    chmod +x ${APP_HOME}/scripts/entrypoint.sh
 
 EXPOSE 8000
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+ENTRYPOINT ["/app/scripts/entrypoint.sh"]

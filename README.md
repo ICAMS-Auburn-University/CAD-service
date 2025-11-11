@@ -1,75 +1,52 @@
 # CAD Service
 
-Headless microservice that ingests STEP/IGES CAD files, splits them into individual parts with FreeCAD, generates DXF drawings, and uploads the results to Supabase Storage. The service exposes a FastAPI endpoint so the CAD workflow can be orchestrated by the rest of the platform.
+Headless FastAPI microservice that ingests STEP/IGES CAD files, splits assemblies into individual parts with FreeCAD, generates DXF drawings, and uploads everything to Supabase Storage. FreeCAD is invoked directly from the API code (no CLI wrappers), so each request saves the upload, runs the splitter in-process, and immediately uploads the resulting STEP/DXF pairs.
 
 ## Features
 
-- Imports STEP/IGES files in headless FreeCAD mode.
-- Recursively walks assemblies and exports STEP + DXF assets for every sub-part.
-- Uploads the original file and per-part exports to Supabase under `cad-files/{user}/{order}/`.
-- Returns a hierarchical layout JSON so the frontend can render the assembly tree.
-- Ships as a Docker image that already contains FreeCAD, pythonOCC, and Poetry.
+- Handles STEP/IGES uploads via `/api/v1/split`.
+- Uses FreeCAD directly from Python to recursively split assemblies (same logic as the validated script).
+- Generates DXF drawings for each STEP part using pythonOCC/ezdxf.
+- Uploads the original assembly plus every STEP/DXF pair to Supabase (`cad-files/{user}/{order}/...`).
+- Returns a hierarchical layout tree so the frontend can render the assembly structure.
 
-## Project Layout
+## Repository Layout
 
 ```
 CAD-service/
 ├── Dockerfile
-├── pyproject.toml
+├── requirements.txt
 ├── README.md
 ├── scripts/
 │   └── entrypoint.sh
 ├── src/
 │   ├── api/
-│   │   ├── __init__.py
-│   │   ├── dependencies.py
-│   │   └── routes.py
 │   ├── cad/
-│   │   ├── __init__.py
-│   │   ├── dxf.py
-│   │   ├── layouts.py
-│   │   ├── splitter.py
-│   │   ├── storage.py
-│   │   ├── types.py
-│   │   └── workflow.py
-│   ├── core/
-│   │   ├── __init__.py
-│   │   └── config.py
 │   ├── models/
-│   │   ├── __init__.py
-│   │   └── split.py
-│   ├── app.py
-│   └── static/
+│   └── app.py
 └── tests/
-    └── test_splitter.py
 ```
-
-## Requirements
-
-- Docker (local dev and prod always run inside the container).
-- Supabase project with a storage bucket and API keys.
-- `.env` file holding the required environment variables.
 
 ## Configuration
 
-| Variable                   | Description                                               |
-| -------------------------- | --------------------------------------------------------- |
-| `SUPABASE_PROJECT_URL`     | Supabase project URL                                      |
-| `SUPABASE_API_KEY`         | Supabase API key (service role or anon key with storage)  |
-| `SUPABASE_STORAGE_BUCKET`  | Supabase storage bucket for CAD files                     |
-| `SUPABASE_STORAGE_PREFIX`  | Optional prefix (defaults to `cad-files`)                 |
-| `CAD_SERVICE_LOG_LEVEL`    | Optional log level override (`INFO`, `DEBUG`, etc.)       |
+Set these variables in `.env` and pass them to `docker run --env-file .env …`:
 
-## Local Development (inside the Docker container)
+| Variable                  | Description                                               |
+| ------------------------- | --------------------------------------------------------- |
+| `SUPABASE_PROJECT_URL`    | Supabase project URL                                      |
+| `SUPABASE_API_KEY`        | Supabase service/anon key with storage access             |
+| `SUPABASE_STORAGE_BUCKET` | Supabase bucket name (e.g., `cad-files`)                  |
+| `SUPABASE_STORAGE_PREFIX` | Optional prefix under the bucket (defaults to `cad-files`)|
+| `CAD_SERVICE_LOG_LEVEL`   | Optional log level (`INFO`, `DEBUG`, etc.)                |
 
-1. **Build the image**
+## Local Development (inside Docker)
 
+1. Build the image:
    ```bash
    docker build -t cad-service-dev .
    ```
 
-2. **Start a dev container shell**
-
+2. Start a development container:
    ```bash
    docker run --rm -it \
      -p 8000:8000 \
@@ -77,23 +54,19 @@ CAD-service/
      -v "$(pwd)":/app \
      cad-service-dev /bin/bash
    ```
+   Always run the API from inside this shell so FreeCAD/pythonOCC are available.
 
-   Work from this shell every time—you’ll run FastAPI here so FreeCAD/pythonocc are available.
-
-3. **Run FastAPI inside the container**
-
+3. Launch FastAPI:
    ```bash
    python -m uvicorn app:app --app-dir src --host 0.0.0.0 --port 8000 --reload
    ```
 
-4. **Run tests inside the container**
-
+4. Run tests:
    ```bash
    pytest
    ```
 
-5. **One-off commands without an interactive shell**
-
+5. One-off commands without an interactive shell:
    ```bash
    docker run --rm \
      --env-file .env \
@@ -120,18 +93,16 @@ docker run --rm \
   python -c "import FreeCAD, sys; print(sys.executable, FreeCAD.Version())"
 ```
 
-## API usage
-
-Send a split request with an uploaded CAD file:
+## API Usage
 
 ```bash
-curl -X POST "http://localhost:8000/api/split" \
+curl -X POST "http://localhost:8000/api/v1/split" \
   -F user_id=1234 \
   -F order_id=5678 \
   -F cad_file=@/path/to/assembly.step
 ```
 
-Sample response:
+Example response:
 
 ```json
 {
@@ -157,8 +128,8 @@ Sample response:
 }
 ```
 
-If FreeCAD is unavailable in the container the endpoint returns HTTP 503 with a descriptive error.
+If FreeCAD fails, the API responds with HTTP 500 and the container logs show the exact error from the splitter subprocess.
 
 ### STEP File Examples
 
-You can grab public assemblies for testing here: <https://www.steptools.com/docs/stpfiles/bigassy/index.html>.
+Grab public assemblies for testing from <https://www.steptools.com/docs/stpfiles/bigassy/index.html>.
