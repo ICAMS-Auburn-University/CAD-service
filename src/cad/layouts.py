@@ -1,6 +1,9 @@
+import logging
 from typing import Any, Dict, List, Sequence
 
 from models.types.split_part import SplitPart
+
+logger = logging.getLogger(__name__)
 
 
 class LayoutNode:
@@ -35,6 +38,7 @@ def build_part_layout(parts: Sequence[SplitPart]) -> Dict[str, Any] | List[str]:
     root = LayoutNode()
     for part in parts:
         root.add(part.hierarchy, part.name, part.has_children)
+    logger.info("Built layout tree for %d parts", len(parts))
 
     serialized = {key: child.serialize() for key, child in sorted(root.children.items())}
     if root.leaves:

@@ -45,6 +45,7 @@ def process_order(user_id: str, order_id: str, input_path: Path) -> SplitJobResu
         export_dir = Path(tmp_dir) / "parts"
         parts = split_step_assembly(input_path, export_dir)
         layout = build_part_layout(parts)
+        logger.info("Split produced %d parts", len(parts))
 
         original_remote_name = f"original{input_path.suffix}"
         original_remote_path = build_remote_path(
@@ -76,6 +77,7 @@ def process_order(user_id: str, order_id: str, input_path: Path) -> SplitJobResu
                 dxf_path.name,
             )
             upload_file(dxf_path, dxf_remote)
+            logger.info("Uploaded part %s with hierarchy %s", part.name, "/".join(part.hierarchy))
 
             part_payloads.append(
                 SplitPartFile(

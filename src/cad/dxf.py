@@ -1,4 +1,5 @@
 import datetime
+import logging
 import subprocess
 from pathlib import Path
 from typing import Iterable, List, Sequence, Tuple
@@ -9,6 +10,8 @@ from OCC.Core.IFSelect import IFSelect_RetDone
 from OCC.Core.STEPControl import STEPControl_Reader
 from OCC.Core.TopAbs import TopAbs_EDGE
 from OCC.Core.TopExp import TopExp_Explorer
+
+logger = logging.getLogger(__name__)
 
 A4_WIDTH = 297
 A4_HEIGHT = 210
@@ -30,6 +33,7 @@ def export_pdf_from_dxf(dxf_file: Path, pdf_file: Path) -> None:
             ["inkscape", str(dxf_file), "--export-type=pdf", "--export-filename", str(pdf_file)],
             check=True,
         )
+        logger.info("Generated PDF %s from %s", pdf_file.name, dxf_file.name)
     except Exception:
         pass
 
@@ -195,6 +199,7 @@ def convert_step_to_dxf(
     else:
         dxf_path = Path(out_dxf).resolve()
 
+    logger.info("Generating DXF for %s -> %s", step_path.name, dxf_path.name)
     shape = load_shape(step_path)
     edges = collect_edges(shape)
 
@@ -235,6 +240,7 @@ def convert_step_to_dxf(
             msp.add_line(pt1, pt2, dxfattribs={"layer": name, "color": 7})
 
     doc.saveas(str(dxf_path))
+    logger.info("DXF saved to %s", dxf_path)
 
     if export_pdf:
         pdf_path = dxf_path.with_suffix(".pdf")
