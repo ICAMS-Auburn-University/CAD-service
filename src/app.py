@@ -4,9 +4,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from supabase import init_supabase
+from database import init_supabase
 
 from api.routes import router
+from dotenv import load_dotenv
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -30,4 +31,5 @@ async def favicon() -> FileResponse:
 
 @app.on_event("startup")
 async def startup_event():
+    load_dotenv()
     init_supabase()

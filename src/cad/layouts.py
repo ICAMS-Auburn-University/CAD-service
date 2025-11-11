@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Sequence
 
-from cad.types import SplitPart
+from models.types.split_part import SplitPart
 
 
 class LayoutNode:
@@ -32,8 +32,6 @@ class LayoutNode:
 
 
 def build_part_layout(parts: Sequence[SplitPart]) -> Dict[str, Any] | List[str]:
-    """Generate a nested dictionary/list structure describing the assembly."""
-
     root = LayoutNode()
     for part in parts:
         root.add(part.hierarchy, part.name, part.has_children)
@@ -45,4 +43,5 @@ def build_part_layout(parts: Sequence[SplitPart]) -> Dict[str, Any] | List[str]:
             serialized["_parts"] = deduped
             return serialized
         return deduped
+
     return serialized

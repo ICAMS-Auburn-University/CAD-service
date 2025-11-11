@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from cad.types import SplitPart
+from models.types.split_part import SplitPart
 from cad.layouts import build_part_layout
 
 

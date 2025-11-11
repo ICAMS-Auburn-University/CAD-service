@@ -5,7 +5,7 @@ from typing import Iterable, List, Sequence, Set
 import FreeCAD
 import Import
 
-from cad.types import SplitPart
+from models.types.split_part import SplitPart
 
 
 def sanitize_filename(name: str) -> str:
@@ -105,8 +105,6 @@ def child_nodes(node) -> List:
 
 
 def split_step_assembly(input_file: Path, output_dir: Path) -> List[SplitPart]:
-    """Split the STEP assembly into hierarchical STEP exports."""
-
     input_path = Path(input_file).resolve()
     output_path = Path(output_dir).resolve()
     ensure_directory(output_path)
