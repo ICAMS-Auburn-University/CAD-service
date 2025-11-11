@@ -7,7 +7,10 @@ from cad.layouts import build_part_layout
 def test_build_part_layout_nested_structure():
     parts = [
         SplitPart(
-            name="main_build", hierarchy=tuple(), has_children=True, step_path=Path("main.stp")
+            name="main_build",
+            hierarchy=tuple(),
+            has_children=True,
+            step_path=Path("main.stp"),
         ),
         SplitPart(
             name="sub_build1",
@@ -47,8 +50,18 @@ def test_build_part_layout_nested_structure():
 
 def test_build_part_layout_top_level_leaves():
     parts = [
-        SplitPart(name="widget_a", hierarchy=tuple(), has_children=False, step_path=Path("a.stp")),
-        SplitPart(name="widget_b", hierarchy=tuple(), has_children=False, step_path=Path("b.stp")),
+        SplitPart(
+            name="widget_a",
+            hierarchy=tuple(),
+            has_children=False,
+            step_path=Path("a.stp"),
+        ),
+        SplitPart(
+            name="widget_b",
+            hierarchy=tuple(),
+            has_children=False,
+            step_path=Path("b.stp"),
+        ),
     ]
 
     layout = build_part_layout(parts)

@@ -30,7 +30,8 @@ app.add_middleware(
 
 app.include_router(router, prefix="/api/v1")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-multiprocessing.set_start_method('spawn', force=True)
+multiprocessing.set_start_method("spawn", force=True)
+
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon() -> FileResponse:

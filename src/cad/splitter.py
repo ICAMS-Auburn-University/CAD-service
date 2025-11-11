@@ -24,7 +24,10 @@ def has_solid_shape(obj) -> bool:
 
 
 def sanitize_filename(name: str) -> str:
-    return "".join(ch for ch in name.strip().replace(" ", "_") if ch not in '<>:"/\\|?*') or "part"
+    return (
+        "".join(ch for ch in name.strip().replace(" ", "_") if ch not in '<>:"/\\|?*')
+        or "part"
+    )
 
 
 def ensure_directory(path: Path) -> None:
@@ -109,7 +112,11 @@ def child_nodes(node) -> List:
     if children:
         return children
     out_list = list(getattr(node, "OutList", []))
-    return [candidate for candidate in out_list if is_group_node(candidate) or hasattr(candidate, "Group")]
+    return [
+        candidate
+        for candidate in out_list
+        if is_group_node(candidate) or hasattr(candidate, "Group")
+    ]
 
 
 def split_step_assembly(input_file: Path, output_dir: Path) -> List[SplitPart]:
@@ -133,13 +140,20 @@ def split_step_assembly(input_file: Path, output_dir: Path) -> List[SplitPart]:
             start_nodes = roots
 
         def sort_key(obj):
-            return (getattr(obj, "Label", getattr(obj, "Name", "")) or "", getattr(obj, "Name", ""))
+            return (
+                getattr(obj, "Label", getattr(obj, "Name", "")) or "",
+                getattr(obj, "Name", ""),
+            )
 
         def walk(node, ancestors: Sequence[str]) -> None:
             label = getattr(node, "Label", getattr(node, "Name", "part"))
             safe_label = sanitize_filename(label or "part")
             rel_dirs = list(ancestors)
-            node_dir = output_path.joinpath(*rel_dirs, safe_label) if rel_dirs else output_path / safe_label
+            node_dir = (
+                output_path.joinpath(*rel_dirs, safe_label)
+                if rel_dirs
+                else output_path / safe_label
+            )
             ensure_directory(node_dir)
 
             exportables = collect_subtree_exportables(node)

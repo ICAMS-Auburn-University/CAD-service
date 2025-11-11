@@ -40,7 +40,9 @@ def build_part_layout(parts: Sequence[SplitPart]) -> Dict[str, Any] | List[str]:
         root.add(part.hierarchy, part.name, part.has_children)
     logger.info("Built layout tree for %d parts", len(parts))
 
-    serialized = {key: child.serialize() for key, child in sorted(root.children.items())}
+    serialized = {
+        key: child.serialize() for key, child in sorted(root.children.items())
+    }
     if root.leaves:
         deduped = list(dict.fromkeys(root.leaves))
         if serialized:

@@ -1,14 +1,14 @@
 # CAD Service
 
-Headless FastAPI microservice that ingests STEP/IGES CAD files, splits assemblies into individual parts with FreeCAD, generates DXF drawings, and uploads everything to Supabase Storage. FreeCAD is invoked directly from the API code (no CLI wrappers), so each request saves the upload, runs the splitter in-process, and immediately uploads the resulting STEP/DXF pairs.
+Headless FastAPI microservice that ingests STEP assemblies, splits them into hierarchical STEP parts with FreeCAD, and uploads every artifact to Supabase Storage. The API now shells out to the existing `scripts/split_stp.py` helper via `/usr/bin/python3`, keeping FreeCAD work isolated from the web process.
 
 ## Features
 
-- Handles STEP/IGES uploads via `/api/v1/split`.
-- Uses FreeCAD directly from Python to recursively split assemblies (same logic as the validated script).
-- Generates DXF drawings for each STEP part using pythonOCC/ezdxf.
-- Uploads the original assembly plus every STEP/DXF pair to Supabase (`cad-files/{user}/{order}/...`).
-- Returns a hierarchical layout tree so the frontend can render the assembly structure.
+- Handles STEP uploads via `/api/v1/split`.
+- Saves the upload to a secure temp directory and runs `scripts/split_stp.py` with `/usr/bin/python3`.
+- Recursively collects every generated STEP part (mirrors the FreeCAD group hierarchy).
+- Uploads the original assembly plus each STEP part to Supabase (`{bucket}/{user}/{order}/parts/...`).
+- Returns per-part metadata (name, hierarchy, Supabase storage path) for downstream apps.
 
 ## Repository Layout
 
@@ -31,13 +31,13 @@ CAD-service/
 
 Set these variables in `.env` and pass them to `docker run --env-file .env …`:
 
-| Variable                  | Description                                               |
-| ------------------------- | --------------------------------------------------------- |
-| `SUPABASE_PROJECT_URL`    | Supabase project URL                                      |
-| `SUPABASE_API_KEY`        | Supabase service/anon key with storage access             |
-| `SUPABASE_STORAGE_BUCKET` | Supabase bucket name (e.g., `cad-files`)                  |
-| `SUPABASE_STORAGE_PREFIX` | Optional prefix under the bucket (defaults to `cad-files`)|
-| `CAD_SERVICE_LOG_LEVEL`   | Optional log level (`INFO`, `DEBUG`, etc.)                |
+| Variable                    | Description                                                      |
+| --------------------------- | ---------------------------------------------------------------- |
+| `SUPABASE_PROJECT_URL`      | Supabase project URL                                             |
+| `SUPABASE_API_KEY`          | Supabase service/anon key with storage + bucket write access     |
+| `SUPABASE_STORAGE_BUCKET`   | Supabase bucket name (e.g., `cad-files`)                         |
+| `SYSTEM_PYTHON_PATH` (opt.) | Override for the Python executable used to run `split_stp.py`    |
+| `SPLITTER_TIMEOUT_SECONDS`  | Optional timeout override for the splitter subprocess (default 900) |
 
 ## Local Development (inside Docker)
 
@@ -93,6 +93,18 @@ docker run --rm \
   python -c "import FreeCAD, sys; print(sys.executable, FreeCAD.Version())"
 ```
 
+## Splitter CLI
+
+The API shells out to `scripts/split_stp.py` directly. You can exercise it inside the container:
+
+```bash
+/usr/bin/python3 scripts/split_stp.py \
+  --input sandbox/Rocky_House.stp \
+  --outdir sandbox/parts
+```
+
+The command mirrors what the FastAPI endpoint executes for every upload.
+
 ## API Usage
 
 ```bash
@@ -109,26 +121,19 @@ Example response:
   "data": {
     "user_id": "1234",
     "order_id": "5678",
-    "original": "cad-files/1234/5678/original.step",
+    "original": "cad-files/1234/5678/original/assembly_1a2b.stp",
     "parts": [
       {
-        "name": "sub_build1",
-        "hierarchy": ["main_build"],
-        "step_path": "cad-files/1234/5678/parts/main_build/sub_build1/sub_build1.stp",
-        "dxf_path": "cad-files/1234/5678/parts/main_build/sub_build1/sub_build1.dxf"
+        "name": "Little_Roof",
+        "hierarchy": ["Roof"],
+        "storage_path": "cad-files/1234/5678/parts/Roof/Little_Roof/Little_Roof.stp"
       }
-    ],
-    "layout": {
-      "main_build": {
-        "sub_build1": ["plate_a", "plate_b"],
-        "_parts": ["sub_build2"]
-      }
-    }
+    ]
   }
 }
 ```
 
-If FreeCAD fails, the API responds with HTTP 500 and the container logs show the exact error from the splitter subprocess.
+If FreeCAD fails, the API responds with HTTP 500 and the container logs show the exact error captured from the splitter subprocess.
 
 ### STEP File Examples
 

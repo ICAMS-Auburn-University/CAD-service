@@ -1,15 +1,14 @@
-from typing import Any, Dict, List, Union
+from typing import List
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class SplitPartFile(BaseModel):
-    """Metadata for an exported STEP / DXF pair."""
+    """Metadata for a STEP part stored in Supabase."""
 
     name: str
-    hierarchy: List[str] = []
-    step_path: str
-    dxf_path: str
+    hierarchy: List[str] = Field(default_factory=list)
+    storage_path: str
 
 
 class SplitJobResult(BaseModel):
@@ -18,8 +17,7 @@ class SplitJobResult(BaseModel):
     user_id: str
     order_id: str
     original: str
-    parts: List[SplitPartFile]
-    layout: Union[Dict[str, Any], List[str]]
+    parts: List[SplitPartFile] = Field(default_factory=list)
 
 
 class SplitJobResponse(BaseModel):

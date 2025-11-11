@@ -30,7 +30,13 @@ PROJECTIONS: Sequence[Tuple[Tuple[int, int, int], str]] = (
 def export_pdf_from_dxf(dxf_file: Path, pdf_file: Path) -> None:
     try:
         subprocess.run(
-            ["inkscape", str(dxf_file), "--export-type=pdf", "--export-filename", str(pdf_file)],
+            [
+                "inkscape",
+                str(dxf_file),
+                "--export-type=pdf",
+                "--export-filename",
+                str(pdf_file),
+            ],
             check=True,
         )
         logger.info("Generated PDF %s from %s", pdf_file.name, dxf_file.name)
@@ -151,35 +157,67 @@ def fill_title_block(
     today = str(datetime.date.today())
     msp.add_text(
         "DRAWING TITLE:",
-        dxfattribs={"height": 6, "layer": "TITLE", "insert": (tb_x + 2, tb_y + tb_h - 8)},
+        dxfattribs={
+            "height": 6,
+            "layer": "TITLE",
+            "insert": (tb_x + 2, tb_y + tb_h - 8),
+        },
     )
     msp.add_text(
         title,
-        dxfattribs={"layer": "TITLE", "height": 7, "insert": (tb_x + 75, tb_y + tb_h - 8)},
+        dxfattribs={
+            "layer": "TITLE",
+            "height": 7,
+            "insert": (tb_x + 75, tb_y + tb_h - 8),
+        },
     )
     msp.add_text(
         "FILE:",
-        dxfattribs={"height": 4.5, "layer": "TITLE", "insert": (tb_x + 2, tb_y + tb_h - 18)},
+        dxfattribs={
+            "height": 4.5,
+            "layer": "TITLE",
+            "insert": (tb_x + 2, tb_y + tb_h - 18),
+        },
     )
     msp.add_text(
         filename,
-        dxfattribs={"layer": "TITLE", "height": 4, "insert": (tb_x + 18, tb_y + tb_h - 18)},
+        dxfattribs={
+            "layer": "TITLE",
+            "height": 4,
+            "insert": (tb_x + 18, tb_y + tb_h - 18),
+        },
     )
     msp.add_text(
         "DATE:",
-        dxfattribs={"height": 4.5, "layer": "TITLE", "insert": (tb_x + 2, tb_y + tb_h - 36)},
+        dxfattribs={
+            "height": 4.5,
+            "layer": "TITLE",
+            "insert": (tb_x + 2, tb_y + tb_h - 36),
+        },
     )
     msp.add_text(
         today,
-        dxfattribs={"layer": "TITLE", "height": 4, "insert": (tb_x + 18, tb_y + tb_h - 36)},
+        dxfattribs={
+            "layer": "TITLE",
+            "height": 4,
+            "insert": (tb_x + 18, tb_y + tb_h - 36),
+        },
     )
     msp.add_text(
         "COMPANY:",
-        dxfattribs={"height": 4.5, "layer": "TITLE", "insert": (tb_x + 2, tb_y + tb_h - 52)},
+        dxfattribs={
+            "height": 4.5,
+            "layer": "TITLE",
+            "insert": (tb_x + 2, tb_y + tb_h - 52),
+        },
     )
     msp.add_text(
         company,
-        dxfattribs={"layer": "TITLE", "height": 4, "insert": (tb_x + 24, tb_y + tb_h - 52)},
+        dxfattribs={
+            "layer": "TITLE",
+            "height": 4,
+            "insert": (tb_x + 24, tb_y + tb_h - 52),
+        },
     )
 
 
@@ -218,25 +256,39 @@ def convert_step_to_dxf(
         company=company,
     )
 
-    view_area_width = int((A4_WIDTH - 2 * MARGIN - 2 * VIEW_GAP - 20) / len(PROJECTIONS))
+    view_area_width = int(
+        (A4_WIDTH - 2 * MARGIN - 2 * VIEW_GAP - 20) / len(PROJECTIONS)
+    )
     view_area_height = A4_HEIGHT - tb_h - 2 * MARGIN - 24
 
     for index, (projection, name) in enumerate(PROJECTIONS):
         origin_x = MARGIN + 10 + index * (view_area_width + VIEW_GAP)
         origin_y = tb_y + tb_h + 12
         bbox = get_bbox(edges, projection)
-        scale, offset_x, offset_y = scale_and_center(bbox, view_area_width, view_area_height)
+        scale, offset_x, offset_y = scale_and_center(
+            bbox, view_area_width, view_area_height
+        )
 
         msp.add_text(
             f"{name.upper()} VIEW",
-            dxfattribs={"layer": "TITLE", "height": 7, "insert": (origin_x, origin_y - 12)},
+            dxfattribs={
+                "layer": "TITLE",
+                "height": 7,
+                "insert": (origin_x, origin_y - 12),
+            },
         )
 
         for p0, p1 in edges:
             pt1 = project_point(p0, projection)
             pt2 = project_point(p1, projection)
-            pt1 = (pt1[0] * scale + origin_x + offset_x, pt1[1] * scale + origin_y + offset_y)
-            pt2 = (pt2[0] * scale + origin_x + offset_x, pt2[1] * scale + origin_y + offset_y)
+            pt1 = (
+                pt1[0] * scale + origin_x + offset_x,
+                pt1[1] * scale + origin_y + offset_y,
+            )
+            pt2 = (
+                pt2[0] * scale + origin_x + offset_x,
+                pt2[1] * scale + origin_y + offset_y,
+            )
             msp.add_line(pt1, pt2, dxfattribs={"layer": name, "color": 7})
 
     doc.saveas(str(dxf_path))
