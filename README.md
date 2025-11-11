@@ -48,30 +48,27 @@ CAD-service/
 
 - Docker (local dev and prod always run inside the container).
 - Supabase project with a storage bucket and API keys.
-- Optional: `.env` file holding the required environment variables.
+- `.env` file holding the required environment variables.
 
 ## Configuration
 
-| Variable                    | Description                                                |
-| --------------------------- | ---------------------------------------------------------- |
-| `SUPABASE_URL`              | Supabase project URL                                       |
-| `SUPABASE_KEY`              | Supabase API key (service or anon key with storage access) |
-| `STORAGE_BUCKET`            | Supabase storage bucket for CAD files                      |
-| `STORAGE_PREFIX`            | Optional prefix (defaults to `cad-files`)                  |
-| `SUPABASE_SERVICE_ROLE_KEY` | Optional service-role key for future enhancements          |
-| `CAD_SERVICE_LOG_LEVEL`     | Optional log level override (`INFO`, `DEBUG`, etc.)        |
+| Variable                   | Description                                               |
+| -------------------------- | --------------------------------------------------------- |
+| `SUPABASE_PROJECT_URL`     | Supabase project URL                                      |
+| `SUPABASE_API_KEY`         | Supabase API key (service role or anon key with storage)  |
+| `SUPABASE_STORAGE_BUCKET`  | Supabase storage bucket for CAD files                     |
+| `SUPABASE_STORAGE_PREFIX`  | Optional prefix (defaults to `cad-files`)                 |
+| `CAD_SERVICE_LOG_LEVEL`    | Optional log level override (`INFO`, `DEBUG`, etc.)       |
 
-Set these in `.env` for local work and pass them to `docker run`/Compose in deployed environments.
+## Local Development (inside the Docker container)
 
-## Local Development (Docker-only workflow)
-
-1. **Build the dev image**
+1. **Build the image**
 
    ```bash
    docker build -t cad-service-dev .
    ```
 
-2. **Start an interactive container with your source mounted**
+2. **Start a dev container shell**
 
    ```bash
    docker run --rm -it \
@@ -81,32 +78,31 @@ Set these in `.env` for local work and pass them to `docker run`/Compose in depl
      cad-service-dev /bin/bash
    ```
 
-   This drops you into `/app` with Poetry, FreeCAD, pythonOCC, and the repo mounted for hot reload.
+   Work from this shell every time—you’ll run FastAPI here so FreeCAD/pythonocc are available.
 
-3. **Run the API inside the container**
+3. **Run FastAPI inside the container**
 
    ```bash
-   poetry run uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+   python -m uvicorn app:app --app-dir src --host 0.0.0.0 --port 8000 --reload
    ```
 
 4. **Run tests inside the container**
 
    ```bash
-   poetry run pytest
+   pytest
    ```
 
-5. **Fire one-off commands without opening a shell**
+5. **One-off commands without an interactive shell**
 
    ```bash
    docker run --rm \
      --env-file .env \
+     -v "$(pwd)":/app \
      cad-service-dev \
-     bash -lc "poetry run pytest"
+     bash -lc "pytest"
    ```
 
 ## Running the packaged service
-
-Once you’re ready to run the API without an interactive shell:
 
 ```bash
 docker run --rm \
@@ -115,7 +111,7 @@ docker run --rm \
   cad-service-dev
 ```
 
-To sanity-check FreeCAD inside the container:
+Sanity-check FreeCAD inside the container:
 
 ```bash
 docker run --rm \
