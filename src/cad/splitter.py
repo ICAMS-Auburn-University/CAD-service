@@ -113,8 +113,8 @@ def child_nodes(node) -> List:
 
 
 def split_step_assembly(input_file: Path, output_dir: Path) -> List[SplitPart]:
-    input_path = Path(input_file).resolve()
-    output_path = Path(output_dir).resolve()
+    input_path = input_file.resolve()
+    output_path = output_dir.resolve()
     ensure_directory(output_path)
 
     document = load_document(input_path)

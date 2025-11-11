@@ -3,6 +3,7 @@ import shutil
 import tempfile
 from pathlib import Path
 from typing import BinaryIO
+from uuid import uuid4
 
 from models import SplitJobResult
 from cad.workflow import process_order
@@ -16,9 +17,8 @@ def process_uploaded_cad(
     filename: str,
     file_stream: BinaryIO,
 ) -> SplitJobResult:
-    temp_handle = tempfile.NamedTemporaryFile(delete=False, suffix=Path(filename).suffix)
-    temp_handle.close()
-    temp_path = Path(temp_handle.name)
+    safe_name = Path(filename).name or "upload.step"
+    temp_path = Path(tempfile.gettempdir()) / f"{uuid4()}_{safe_name}"
 
     try:
         with temp_path.open("wb") as destination:

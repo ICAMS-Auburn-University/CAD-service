@@ -3,6 +3,8 @@ FROM continuumio/miniconda3:latest
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     DEBIAN_FRONTEND=noninteractive \
+    QT_QPA_PLATFORM=offscreen \
+    FREECAD_SELF_CONTAINED=1 \
     APP_HOME=/app
 
 WORKDIR ${APP_HOME}
@@ -13,6 +15,7 @@ RUN apt-get update && \
         freecad \
         freecad-python3 \
         libglu1-mesa \
+        libffi-dev \
         libsm6 \
         libxrender1 \
         libxext6 \
@@ -24,13 +27,14 @@ RUN apt-get update && \
 
 # FreeCAD installs its Python modules under /usr/lib/freecad/lib
 ENV PYTHONPATH=/usr/lib/freecad/lib:/app/src
+ENV LD_LIBRARY_PATH=/opt/conda/lib:${LD_LIBRARY_PATH}
 
 # Accept Anaconda Terms of Service for default channels
 RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
 RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
 
 # Install Python 3.10 and pythonocc-core via conda (much smaller solve than FreeCAD)
-RUN conda install -y -c conda-forge python=3.10 pythonocc-core && conda clean -afy
+RUN conda install -y -c conda-forge libstdcxx-ng=13.1.0 python=3.10 pythonocc-core && conda clean -afy
 
 # Upgrade pip and install all pure Python dependencies (ezdxf, fastapi, etc.)
 RUN pip install --no-cache-dir --upgrade pip
