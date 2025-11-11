@@ -19,9 +19,9 @@ async def read_root():
     summary="Split a CAD assembly into parts and upload results to Supabase.",
 )
 async def split_cad_model(
-    user_id: str,
-    order_id: str,
-    cad_file: UploadFile,
+    user_id: str = Form(..., min_length=1),
+    order_id: str = Form(..., min_length=1),
+    cad_file: UploadFile = File(...),
 ) -> SplitJobResponse:
     try:
         result = process_uploaded_cad(user_id, order_id, cad_file.filename, cad_file.file)

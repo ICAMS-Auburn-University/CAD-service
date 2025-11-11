@@ -1,14 +1,17 @@
+import logging
 import mimetypes
+import os
 import tempfile
 from pathlib import Path
 from typing import List
 
-import os
 from models import SplitJobResult, SplitPartFile
 from cad.dxf import convert_step_to_dxf
 from cad.layouts import build_part_layout
 from cad.splitter import split_step_assembly
 from database import get_supabase
+
+logger = logging.getLogger(__name__)
 
 
 def build_remote_path(*segments: str) -> str:
@@ -32,10 +35,12 @@ def upload_file(local_path: Path, remote_path: str) -> str:
 
     if isinstance(response, dict) and response.get("error"):
         raise RuntimeError(f"Supabase upload failed: {response['error']['message']}")
+    logger.info("Uploaded %s to %s", local_path.name, remote_path)
     return remote_path
 
 
 def process_order(user_id: str, order_id: str, input_path: Path) -> SplitJobResult:
+    logger.info("Processing order %s for user %s", order_id, user_id)
     with tempfile.TemporaryDirectory(prefix="cad-service-") as tmp_dir:
         export_dir = Path(tmp_dir) / "parts"
         parts = split_step_assembly(input_path, export_dir)
@@ -89,4 +94,5 @@ def process_order(user_id: str, order_id: str, input_path: Path) -> SplitJobResu
         layout=layout,
     )
 
+    logger.info("Finished order %s for user %s (%d parts)", order_id, user_id, len(part_payloads))
     return result

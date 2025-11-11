@@ -1,3 +1,4 @@
+import logging
 import shutil
 import tempfile
 from pathlib import Path
@@ -5,6 +6,8 @@ from typing import BinaryIO
 
 from models import SplitJobResult
 from cad.workflow import process_order
+
+logger = logging.getLogger(__name__)
 
 
 def process_uploaded_cad(
@@ -20,6 +23,7 @@ def process_uploaded_cad(
     try:
         with temp_path.open("wb") as destination:
             shutil.copyfileobj(file_stream, destination)
+        logger.info("Saved upload for user %s order %s to %s", user_id, order_id, temp_path)
         return process_order(user_id, order_id, temp_path)
     finally:
         temp_path.unlink(missing_ok=True)

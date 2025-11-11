@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -8,6 +9,11 @@ from database import init_supabase
 
 from api.routes import router
 from dotenv import load_dotenv
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+)
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
