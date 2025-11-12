@@ -1,6 +1,13 @@
-"""Pydantic models used across the CAD service API."""
+"""Convenience re-exports for response and type models."""
 
-from .split import SplitJobResult, SplitJobResponse
-from .root import MessageResponse
+from .responses.message import MessageResponse
+from .responses.split import SplitJobResponse, SplitJobResult, SplitPartFile
+from .types.split_part import SplitPart
 
-__all__ = ["SplitJobResult", "SplitJobResponse", "MessageResponse"]
+__all__ = [
+    "MessageResponse",
+    "SplitJobResponse",
+    "SplitJobResult",
+    "SplitPartFile",
+    "SplitPart",
+]
