@@ -8,7 +8,7 @@ Headless FastAPI microservice that ingests STEP assemblies, splits them into hie
 - Saves the upload to a secure temp directory and runs `scripts/split_stp.py` with `/usr/bin/python3`.
 - Recursively collects every generated STEP part (mirrors the FreeCAD group hierarchy).
 - Uploads the original assembly plus each STEP part to Supabase (`{bucket}/{user}/{order}/parts/...`).
-- Returns per-part metadata (name, hierarchy, Supabase storage path) for downstream apps.
+- Returns per-part metadata (name, hierarchy, storage path) for downstream apps.
 
 ## Repository Layout
 
