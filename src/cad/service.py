@@ -4,6 +4,8 @@ import os
 import shutil
 import subprocess
 import tempfile
+import re
+import unicodedata
 from pathlib import Path
 from typing import BinaryIO, List
 from uuid import uuid4
@@ -11,7 +13,7 @@ from uuid import uuid4
 from loguru import logger
 
 from models import SplitJobResult, SplitPartFile
-from database import upload_file_to_supabase
+from database import ensure_order_exists, record_split_part, upload_file_to_supabase
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SPLITTER_SCRIPT = PROJECT_ROOT / "scripts" / "split_stp.py"
@@ -19,12 +21,18 @@ SYSTEM_PYTHON = os.getenv("SYSTEM_PYTHON_PATH", "/usr/bin/python3")
 SPLITTER_TIMEOUT = int(os.getenv("SPLITTER_TIMEOUT_SECONDS", "900"))
 
 
+_SEGMENT_INVALID_CHARS = re.compile(r"[^A-Za-z0-9._-]+")
+
+
 def _clean_segment(value: str, fallback: str) -> str:
     """Normalize user-supplied identifiers for storage paths."""
 
-    stripped = value.strip().strip("/\\")
-    sanitized = stripped.replace("/", "_").replace("\\", "_").replace(" ", "_")
-    return sanitized or fallback
+    normalized = unicodedata.normalize("NFKD", value or "")
+    ascii_only = normalized.encode("ascii", "ignore").decode("ascii")
+    stripped = ascii_only.strip().strip("/\\")
+    sanitized = _SEGMENT_INVALID_CHARS.sub("_", stripped)
+    collapsed = re.sub(r"_+", "_", sanitized).strip("_")
+    return collapsed or fallback
 
 
 def _persist_upload(file_stream: BinaryIO, original_name: str, temp_dir: Path) -> Path:
@@ -105,8 +113,10 @@ def _build_remote_key(user_id: str, order_id: str, *segments: str) -> str:
     cleaned_segments = [
         _clean_segment(user_id, "user"),
         _clean_segment(order_id, "order"),
-        *[segment.strip("/\\") for segment in segments if segment],
     ]
+    for index, segment in enumerate(segment for segment in segments if segment):
+        fallback = f"segment_{index + 1}"
+        cleaned_segments.append(_clean_segment(segment, fallback))
     return "/".join(segment for segment in cleaned_segments if segment)
 
 
@@ -120,6 +130,17 @@ def process_uploaded_cad(
     order_id = order_id.strip()
     if not user_id or not order_id:
         raise ValueError("user_id and order_id must be provided.")
+
+    try:
+        ensure_order_exists(order_id=order_id, user_id=user_id)
+    except Exception as exc:
+        logger.error(
+            "Failed to ensure order {} exists for user {}: {}",
+            order_id,
+            user_id,
+            exc,
+        )
+        raise
 
     temp_dir = Path(tempfile.mkdtemp(prefix="cad-service-"))
     try:
@@ -147,6 +168,27 @@ def process_uploaded_cad(
                 part_path.name,
             )
             storage_path = upload_file_to_supabase(part_path, remote_key)
+            safe_name = _clean_segment(
+                part_path.name, f"{part_path.stem or 'part'}.stp"
+            )
+
+            try:
+                record_split_part(
+                    order_id=order_id,
+                    name=safe_name,
+                    storage_path=storage_path,
+                    hierarchy=hierarchy,
+                    metadata=None,
+                )
+            except Exception as exc:
+                logger.error(
+                    "Failed to record split part metadata for {} / {}: {}",
+                    order_id,
+                    part_path.name,
+                    exc,
+                )
+                raise
+
             part_payloads.append(
                 SplitPartFile(
                     name=part_path.stem,

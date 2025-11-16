@@ -3,6 +3,8 @@ from __future__ import annotations
 import mimetypes
 import os
 from pathlib import Path
+from typing import Any, Mapping, Sequence
+from uuid import uuid4
 
 from loguru import logger
 from supabase import Client, create_client
@@ -33,6 +35,47 @@ def get_supabase() -> Client:
     if _supabase is None:
         _supabase = init_supabase()
     return _supabase
+
+
+def _response_data(response: Any) -> list[Mapping[str, Any]]:
+    """Extract the .data payload from a Supabase response object."""
+
+    if response is None:
+        return []
+    data = getattr(response, "data", None)
+    if data is None and isinstance(response, Mapping):
+        data = response.get("data")
+    if data is None:
+        return []
+    if isinstance(data, list):
+        return data
+    return [data]
+
+
+def ensure_order_exists(order_id: str, user_id: str) -> Mapping[str, Any]:
+    """Verify the order row already exists; raise if it does not."""
+
+    order_id = (order_id or "").strip()
+    user_id = (user_id or "").strip()
+    if not order_id or not user_id:
+        raise ValueError("order_id and user_id are required to verify an order.")
+
+    client = get_supabase()
+
+    try:
+        response = (
+            client.table("Orders").select("id").eq("id", order_id).limit(1).execute()
+        )
+    except Exception as exc:  # pragma: no cover - network issues
+        logger.error("Order lookup failed for {}: {}", order_id, exc)
+        raise
+
+    existing = _response_data(response)
+    if not existing:
+        raise ValueError(
+            f"Order {order_id} for user {user_id} does not exist in Supabase."
+        )
+    return existing[0]
 
 
 def upload_file_to_supabase(
@@ -90,3 +133,66 @@ def upload_file_to_supabase(
     stored_path = f"{bucket}/{normalized_remote}"
     logger.info("Uploaded {} to {}", local_path.name, stored_path)
     return stored_path
+
+
+def record_split_part(
+    *,
+    order_id: str,
+    name: str,
+    storage_path: str,
+    hierarchy: Sequence[str] | None = None,
+    metadata: Mapping[str, Any] | None = None,
+) -> Mapping[str, Any]:
+    """Persist part metadata to the split_parts table, avoiding duplicates."""
+
+    order_id = order_id.strip()
+    storage_path = storage_path.strip()
+    if not order_id or not storage_path:
+        raise ValueError("order_id and storage_path must be provided for split parts.")
+
+    client = get_supabase()
+    hierarchy_list = list(hierarchy or [])
+    payload: dict[str, Any] = {
+        "id": str(uuid4()),
+        "order_id": order_id,
+        "name": name.strip() or Path(storage_path).name,
+        "storage_path": storage_path,
+        "hierarchy": hierarchy_list,
+        "metadata": metadata,
+    }
+
+    try:
+        existing_response = (
+            client.table("split_parts")
+            .select("id")
+            .eq("order_id", order_id)
+            .eq("storage_path", storage_path)
+            .limit(1)
+            .execute()
+        )
+    except Exception as exc:  # pragma: no cover - network issues
+        logger.error(
+            "Failed checking existing split part for order {} and path {}: {}",
+            order_id,
+            storage_path,
+            exc,
+        )
+        raise
+
+    existing_data = _response_data(existing_response)
+    if existing_data:
+        return existing_data[0]
+
+    try:
+        insert_response = client.table("split_parts").insert(payload).execute()
+    except Exception as exc:  # pragma: no cover - network issues
+        logger.error(
+            "Failed recording split part {} for order {}: {}",
+            storage_path,
+            order_id,
+            exc,
+        )
+        raise
+
+    inserted = _response_data(insert_response)
+    return inserted[0] if inserted else payload
