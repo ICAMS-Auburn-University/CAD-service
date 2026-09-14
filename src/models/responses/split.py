@@ -1,4 +1,4 @@
-from typing import List
+from typing import Any, Dict, List
 
 from pydantic import BaseModel, Field
 
@@ -9,6 +9,7 @@ class SplitPartFile(BaseModel):
     name: str
     hierarchy: List[str] = Field(default_factory=list)
     storage_path: str
+    metadata: Dict[str, Any] | None = None
 
 
 class SplitJobResult(BaseModel):

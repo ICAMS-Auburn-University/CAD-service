@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
 import tempfile
 import re
 import unicodedata
+from collections import Counter
 from pathlib import Path
 from typing import BinaryIO, List
 from uuid import uuid4
@@ -19,6 +21,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SPLITTER_SCRIPT = PROJECT_ROOT / "scripts" / "split_stp.py"
 SYSTEM_PYTHON = os.getenv("SYSTEM_PYTHON_PATH", "/usr/bin/python3")
 SPLITTER_TIMEOUT = int(os.getenv("SPLITTER_TIMEOUT_SECONDS", "900"))
+SPLIT_MANIFEST_NAME = "split_manifest.json"
 
 
 _SEGMENT_INVALID_CHARS = re.compile(r"[^A-Za-z0-9._-]+")
@@ -99,6 +102,31 @@ def _collect_step_files(parts_dir: Path) -> List[Path]:
     return sorted(parts_dir.rglob("*.stp"))
 
 
+def _load_split_manifest(parts_dir: Path) -> dict[str, dict[str, object]]:
+    manifest_path = parts_dir / SPLIT_MANIFEST_NAME
+    if not manifest_path.exists():
+        return {}
+
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        logger.warning("Failed to read split manifest {}: {}", manifest_path, exc)
+        return {}
+
+    entries = payload.get("parts") if isinstance(payload, dict) else []
+    if not isinstance(entries, list):
+        return {}
+
+    manifest: dict[str, dict[str, object]] = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        relative_path = entry.get("relative_path")
+        if isinstance(relative_path, str) and relative_path.strip():
+            manifest[relative_path.strip()] = entry
+    return manifest
+
+
 def _hierarchy_for(part_path: Path, base_dir: Path) -> List[str]:
     try:
         relative = part_path.parent.relative_to(base_dir)
@@ -151,6 +179,13 @@ def process_uploaded_cad(
         part_files = _collect_step_files(parts_dir)
         if not part_files:
             raise RuntimeError("No STEP parts were produced by the splitter.")
+        manifest_by_relative_path = _load_split_manifest(parts_dir)
+        similarity_counts = Counter(
+            entry.get("similarity_key")
+            for entry in manifest_by_relative_path.values()
+            if isinstance(entry.get("similarity_key"), str)
+            and str(entry.get("similarity_key")).strip()
+        )
 
         original_remote_key = _build_remote_key(
             user_id, order_id, "original", input_path.name
@@ -160,6 +195,18 @@ def process_uploaded_cad(
         part_payloads: List[SplitPartFile] = []
         for part_path in part_files:
             hierarchy = _hierarchy_for(part_path, parts_dir)
+            relative_path = part_path.relative_to(parts_dir).as_posix()
+            manifest_entry = manifest_by_relative_path.get(relative_path, {})
+            similarity_key = manifest_entry.get("similarity_key")
+            duplicate_count = (
+                similarity_counts[similarity_key]
+                if isinstance(similarity_key, str) and similarity_key in similarity_counts
+                else 1
+            )
+            metadata = {
+                "similarity_key": similarity_key,
+                "duplicate_count": duplicate_count,
+            }
             remote_key = _build_remote_key(
                 user_id,
                 order_id,
@@ -178,7 +225,7 @@ def process_uploaded_cad(
                     name=safe_name,
                     storage_path=storage_path,
                     hierarchy=hierarchy,
-                    metadata=None,
+                    metadata=metadata,
                 )
             except Exception as exc:
                 logger.error(
@@ -194,6 +241,7 @@ def process_uploaded_cad(
                     name=part_path.stem,
                     hierarchy=hierarchy,
                     storage_path=storage_path,
+                    metadata=metadata,
                 )
             )
             logger.info("Uploaded part {} -> {}", part_path.name, storage_path)

@@ -1,4 +1,6 @@
 import argparse
+import hashlib
+import json
 import logging
 import os
 import sys
@@ -124,11 +126,63 @@ def is_group_node(obj) -> bool:
     return hasattr(obj, "Group") or getattr(obj, "TypeId", "").startswith("App::Part")
 
 
+def round_metric(value) -> float:
+    try:
+        return round(float(value), 5)
+    except Exception:
+        return 0.0
+
+
+def shape_signature(shape) -> dict:
+    bbox = getattr(shape, "BoundBox", None)
+    return {
+        "area": round_metric(getattr(shape, "Area", 0.0)),
+        "volume": round_metric(getattr(shape, "Volume", 0.0)),
+        "length": round_metric(getattr(shape, "Length", 0.0)),
+        "bbox_x": round_metric(getattr(bbox, "XLength", 0.0) if bbox else 0.0),
+        "bbox_y": round_metric(getattr(bbox, "YLength", 0.0) if bbox else 0.0),
+        "bbox_z": round_metric(getattr(bbox, "ZLength", 0.0) if bbox else 0.0),
+        "solids": len(getattr(shape, "Solids", []) or []),
+        "faces": len(getattr(shape, "Faces", []) or []),
+        "edges": len(getattr(shape, "Edges", []) or []),
+        "vertices": len(getattr(shape, "Vertexes", []) or []),
+    }
+
+
+def exportable_signature(exportables: Sequence) -> str:
+    signatures = []
+    for obj in exportables:
+        shape = getattr(obj, "Shape", None)
+        if shape is None:
+            continue
+        signatures.append(shape_signature(shape))
+
+    canonical = json.dumps(
+        sorted(
+            signatures,
+            key=lambda item: (
+                item["volume"],
+                item["area"],
+                item["bbox_x"],
+                item["bbox_y"],
+                item["bbox_z"],
+                item["faces"],
+                item["edges"],
+                item["vertices"],
+            ),
+        ),
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha1(canonical.encode("utf-8")).hexdigest()[:16]
+
+
 def export_groups_recursive(doc, outdir: str) -> None:
     """Export every subgroup as a STEP in a mirrored folder hierarchy."""
 
     roots = get_root_objects(doc)
     root_ref = roots[0] if len(roots) == 1 else None
+    manifest_entries = []
 
     if root_ref is not None:
         start_nodes = list(getattr(root_ref, "Group", [])) or list(
@@ -159,6 +213,15 @@ def export_groups_recursive(doc, outdir: str) -> None:
         if exportables:
             filepath = os.path.join(node_dir, f"{sanitize_filename(label)}.stp")
             Import.export(exportables, filepath)
+            relative_path = os.path.relpath(filepath, outdir).replace("\\", "/")
+            manifest_entries.append(
+                {
+                    "relative_path": relative_path,
+                    "name": sanitize_filename(label),
+                    "hierarchy": rel_dirs,
+                    "similarity_key": exportable_signature(exportables),
+                }
+            )
             logging.info(
                 "Exported subgroup '%s' with %d parts -> %s",
                 label,
@@ -180,6 +243,11 @@ def export_groups_recursive(doc, outdir: str) -> None:
 
     for node in sorted(start_nodes, key=sort_key):
         walk(node)
+
+    manifest_path = os.path.join(outdir, "split_manifest.json")
+    with open(manifest_path, "w", encoding="utf-8") as manifest_file:
+        json.dump({"parts": manifest_entries}, manifest_file, indent=2)
+    logging.info("Wrote split manifest -> %s", manifest_path)
 
 
 def main() -> None:
